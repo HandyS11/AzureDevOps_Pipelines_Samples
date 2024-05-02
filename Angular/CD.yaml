@@ -1,0 +1,21 @@
+parameters:
+  - name: BuildConfiguration
+    displayName: 'BuildConfiguration'
+    default: 'Release'
+    values:
+        - 'Release'
+        - 'Debug'
+
+name: $(BuildId)
+trigger: none
+
+stages:
+    - stage:
+      displayName: 'CD'
+      jobs:
+        - template: 'CI-CD.Template.yml'
+          parameters:
+            DisplayName: 'Restore, Build, Test and Publish'
+            Publish: true
+            BuildConfiguration: '${{ parameters.BuildConfiguration }}'
+            ArtifactContainerName: 'SomeName'

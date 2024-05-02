@@ -1,0 +1,84 @@
+parameters:
+  - name: DisplayName
+    type: string
+    default: ''
+
+  - name: Publish
+    type: boolean
+    default: false
+
+  - name: Tag
+    type: string
+    default: 'Release'
+
+  - name: BuildConfiguration
+    type: string
+    default: $(BuildConfiguration)
+
+  - name: ArtifactContainerName
+    type: string
+    default: 'Release'
+
+jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    displayName: ${{ parameters.DisplayName }}
+
+    steps:
+    - task: NodeTool@0
+      displayName: 'Install Node.js'
+      inputs:
+        versionSpec: ' 18.13'
+
+    - task: CmdLine@2
+      displayName: 'Install pnpm'
+      inputs:
+        script: |
+          npm i -g pnpm@8
+        workingDirectory: '$(Build.SourcesDirectory)'
+
+    - task: CmdLine@2
+      displayName: 'Install dependencies'
+      inputs:
+        script: |
+          pnpm install
+        workingDirectory: '$(Build.SourcesDirectory)'
+
+    - task: CmdLine@2
+      displayName: 'Build'
+      inputs:
+        script: |
+            pnpm build
+        workingDirectory: '$(Build.SourcesDirectory)'
+
+    - task: CmdLine@2
+      displayName: "Test"
+      inputs:
+        script: |
+          pnpm run test
+
+    - task: ArchiveFiles@2
+      displayName: 'Archive sources'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/dist'
+        includeRootFolder: false
+        verbose: true
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+        replaceExistingArchive: true
+      condition: and(succeeded(), eq(${{ parameters.Publish }}, 'true'))
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Sources'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        ArtifactName: '${{ parameters.ArtifactContainerName }}'
+        publishLocation: 'Container'
+      condition: and(succeeded(), eq(${{ parameters.Publish }}, 'true'))
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          echo "##vso[build.addbuildtag]${{ parameters.Tag }}"
