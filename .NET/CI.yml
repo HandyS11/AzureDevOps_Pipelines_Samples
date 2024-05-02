@@ -1,0 +1,30 @@
+parameters:
+  - name: BuildConfiguration
+    displayName: 'BuildConfiguration'
+    default: 'Release'
+    values:
+        - 'Release'
+        - 'Debug'
+
+variables:
+  - name: 'Solution'
+    value: '**/**.sln'
+    readonly: true
+  - name: 'Project'
+    value: '**/**.csproj'
+    readonly: true
+
+name: $(BuildId)
+trigger: none
+
+stages:
+  - stage:
+    displayName: 'CI'
+    jobs:
+      - template: 'CI-CD.Template.yml'
+        parameters:
+          DisplayName: 'Restore, Build and Test'
+          Publish: false
+          SolutionPath: '$(Solution)'
+          ProjectPath: '$(Project)'
+          BuildConfiguration: '${{ parameters.BuildConfiguration }}'

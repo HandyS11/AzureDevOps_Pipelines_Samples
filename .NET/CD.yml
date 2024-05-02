@@ -1,0 +1,37 @@
+parameters:
+  - name: BuildConfiguration
+    displayName: 'BuildConfiguration'
+    default: 'Release'
+    values:
+        - 'Release'
+        - 'Debug'
+
+variables:
+  - name: 'Solution'
+    value: '**/**.sln'
+    readonly: true
+  - name: 'Project'
+    value: '**/**.csproj'
+    readonly: true
+
+name: $(BuildId)
+trigger: none
+
+stages:
+  - stage:
+    displayName: 'CD'
+    jobs:
+      - template: 'CI-CD.Template.yml'
+        parameters:
+          DisplayName: 'Restore, Build, Test and Publish'
+          Publish: true
+          SolutionPath: '$(Solution)'
+          ProjectPath: '$(Project)'
+          BuildConfiguration: '${{ parameters.BuildConfiguration }}'
+          ArtifactContainerName: 'SomeName'
+          DocfxConfgurationPath: '$(Build.SourcesDirectory)/Documentation/docfx.json'
+      - template: 'Migration.Template.yml'
+        parameters:
+          DisplayName: 'Generate database migration script'
+          ProjectPath: '$(Build.SourcesDirectory)/SomeProject.csproj'
+          ArtifactContainerName: 'SomeDatabase'

@@ -1,0 +1,104 @@
+parameters:
+  - name: DisplayName
+    type: string
+    default: ''
+
+  - name: Publish
+    type: boolean
+    default: false
+
+  - name: SolutionPath
+    type: string
+    default: '**/*.sln'
+
+  - name: ProjectPath
+    type: string
+
+  - name: Tag
+    type: string
+    default: 'Release'
+
+  - name: BuildConfiguration
+    type: string
+    default: $(BuildConfiguration)
+
+  - name: ArtifactContainerName
+    type: string
+    default: 'Release'
+
+  - name: DocfxConfgurationPath
+    type: string
+    default: 'docfx.json'
+
+jobs:
+  - job: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    displayName: '${{ parameters.DisplayName }}'
+    steps:
+
+      - task: GitVersion@5
+        inputs:
+          versionSpec: '5.x'
+        displayName: 'GitVersion'
+
+      - task: UseDotNet@2
+        displayName: 'Use .NET 8'
+        inputs:
+            packageType: 'sdk'
+            version: '8.x'
+
+      - task: DotNetCoreCLI@2
+        displayName: 'Restore'
+        inputs:
+            command: restore
+            verbosityRestore: Normal
+            projects: '${{ parameters.SolutionPath }}'
+
+      - task: CmdLine@2
+        displayName: 'Generate documentation'
+        inputs:
+          script: |
+            dotnet tool update -g docfx
+            docfx "${{ parameters.DocfxConfgurationPath }}"
+        condition: and(succeeded(), eq(${{ parameters.Publish }}, 'true'))
+
+      - task: DotNetCoreCLI@2
+        displayName: 'Build'
+        inputs:
+            command: build
+            arguments: '--configuration ${{ parameters.BuildConfiguration }} --no-restore --verbosity normal'
+            projects: '${{ parameters.SolutionPath }}'
+
+      - task: DotNetCoreCLI@2
+        displayName: 'Test'
+        inputs:
+            command: test
+            arguments: '--configuration ${{ parameters.BuildConfiguration }} --no-restore --verbosity normal --collect "Code Coverage"'
+            projects: '${{ parameters.SolutionPath }}'
+
+      - task: DotNetCoreCLI@2
+        displayName: Publish
+        inputs:
+          command: 'publish'
+          publishWebProjects: false
+          projects: '${{ parameters.ProjectPath }}'
+          arguments: '--configuration ${{ parameters.BuildConfiguration }}  --output $(Build.ArtifactStagingDirectory)/${{ parameters.ArtifactContainerName }}_$(Build.BuildNumber) --no-restore --no-build'
+          modifyOutputPath: true
+          zipAfterPublish: true
+        condition: and(succeeded(), eq(${{ parameters.Publish }}, 'true'))
+
+      - task: PublishBuildArtifacts@1
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)/${{ parameters.ArtifactContainerName }}_$(Build.BuildNumber)'
+          ArtifactName: '${{ parameters.ArtifactContainerName }}'
+          publishLocation: 'Container'
+        condition: and(succeeded(), eq(${{ parameters.Publish }}, 'true'))
+
+      - task: Bash@3
+        displayName: 'Add tags'
+        inputs:
+          targetType: 'inline'
+          script: |
+            echo "##vso[build.addbuildtag]${{ parameters.Tag }}"
+        condition: and(succeeded(), eq(${{ parameters.Publish }}, 'true'))
